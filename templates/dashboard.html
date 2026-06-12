@@ -1,0 +1,353 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard Home - AI Smart City Dashboard{% endblock %}
+{% block page_heading %}Smart City Dashboard{% endblock %}
+{% block page_subheading %}Real-time Municipal Infrastructure and Services Analytics console{% endblock %}
+
+{% block content %}
+<!-- KPI Indicators Grid -->
+<div class="grid-kpis">
+    <div class="kpi-card" style="border-bottom-color: var(--primary);">
+        <div class="kpi-details">
+            <h3>Traffic Density</h3>
+            <div class="value">{{ kpis.traffic_density }} <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">v/hr</span></div>
+        </div>
+        <div class="kpi-icon" style="background: rgba(37, 99, 235, 0.1); color: var(--primary);">
+            <i class="fa-solid fa-car-side"></i>
+        </div>
+    </div>
+    
+    <div class="kpi-card" style="border-bottom-color: var(--warning);">
+        <div class="kpi-details">
+            <h3>Air Quality Index</h3>
+            <div class="value">{{ kpis.aqi }} <span style="font-size: 0.8rem; font-weight: 700; color: {% if kpis.aqi <= 50 %}var(--success){% elif kpis.aqi <= 100 %}var(--warning){% else %}var(--danger){% endif %};">
+                {% if kpis.aqi <= 50 %}GOOD{% elif kpis.aqi <= 100 %}MODERATE{% else %}UNHEALTHY{% endif %}
+            </span></div>
+        </div>
+        <div class="kpi-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--warning);">
+            <i class="fa-solid fa-smog"></i>
+        </div>
+    </div>
+    
+    <div class="kpi-card" style="border-bottom-color: var(--success);">
+        <div class="kpi-details">
+            <h3>Water Quality</h3>
+            <div class="value">{{ kpis.water_score }}<span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">/100</span></div>
+        </div>
+        <div class="kpi-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+            <i class="fa-solid fa-droplet"></i>
+        </div>
+    </div>
+    
+    <div class="kpi-card" style="border-bottom-color: var(--danger);">
+        <div class="kpi-details">
+            <h3>Citizen Reports</h3>
+            <div class="value">{{ kpis.citizen_reports_count }} <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">filed</span></div>
+        </div>
+        <div class="kpi-icon" style="background: rgba(239, 68, 68, 0.1); color: var(--danger);">
+            <i class="fa-solid fa-flag"></i>
+        </div>
+    </div>
+    
+    <div class="kpi-card" style="border-bottom-color: var(--secondary-gray);">
+        <div class="kpi-details">
+            <h3>Pending Repairs</h3>
+            <div class="value">{{ kpis.pending_issues }} <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">active</span></div>
+        </div>
+        <div class="kpi-icon" style="background: rgba(71, 85, 105, 0.1); color: var(--secondary-gray);">
+            <i class="fa-solid fa-wrench"></i>
+        </div>
+    </div>
+</div>
+
+<!-- Main Row: Map Canvas -->
+<div class="glass-panel" style="margin-bottom: 2rem;">
+    <div class="panel-header">
+        <h2><i class="fa-solid fa-map-location-dot"></i> Interactive Smart City Geospatial Map</h2>
+        <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">Interactive markers representing real-time incidents</span>
+    </div>
+    <div id="map-canvas"></div>
+</div>
+
+<!-- Secondary Row: Charts Grid -->
+<div class="grid-dashboard">
+    <!-- Traffic and Pollution trend charts -->
+    <div class="glass-panel">
+        <div class="panel-header">
+            <h2><i class="fa-solid fa-chart-line"></i> Traffic Congestion and Air Pollution Metrics</h2>
+        </div>
+        <div class="chart-container">
+            <canvas id="trafficPollutionChart"></canvas>
+        </div>
+    </div>
+    
+    <!-- Services efficiency response bar chart -->
+    <div class="glass-panel">
+        <div class="panel-header">
+            <h2><i class="fa-solid fa-chart-bar"></i> Utility Efficiency</h2>
+        </div>
+        <div class="chart-container">
+            <canvas id="servicesEfficiencyChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Footer Table: Recent Citizen Reports -->
+<div class="glass-panel">
+    <div class="panel-header">
+        <h2><i class="fa-solid fa-list-check"></i> Recent Citizen Action Reports Ledger</h2>
+        <a href="{{ url_for('citizen_reports') }}" class="btn btn-secondary btn-sm">Manage Reports</a>
+    </div>
+    
+    <div class="table-wrapper">
+        <table class="smart-table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Report Details</th>
+                    <th>Reported Location</th>
+                    <th>Status Badge</th>
+                    <th>Filing Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if citizen_reports %}
+                    {% for report in citizen_reports[:5] %}
+                        <tr>
+                            <td><strong>{{ report.issue_type }}</strong></td>
+                            <td>{{ report.description[:60] }}{% if report.description and report.description|length > 60 %}...{% endif %}</td>
+                            <td>
+                                {% set loc_parts = report.location.split(',', 2) %}
+                                {{ loc_parts[-1] if loc_parts|length == 3 else report.location }}
+                            </td>
+                            <td>
+                                <span class="badge {{ report.status.lower() }}">
+                                    <i class="fa-solid {% if report.status == 'Pending' %}fa-hourglass-start{% elif report.status == 'In Progress' %}fa-spinner fa-spin{% else %}fa-check-circle{% endif %}"></i>
+                                    {{ report.status }}
+                                </span>
+                            </td>
+                            <td>{{ report.timestamp[:10] }}</td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted);">No citizen reports currently filed.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Initialize Smart City Leaflet Map
+    const map = initSmartCityMap('map-canvas');
+    
+    // Map Location Dictionary coordinates mapper
+    const locationCoords = {
+        "Downtown Broadway & 5th Ave": [40.7128, -74.0060],
+        "Uptown Expressway Exit 4": [40.7350, -74.0150],
+        "Westside Ring Road Sector 2": [40.7250, -74.0100],
+        "East Bridge Link": [40.7300, -73.9900],
+        "Financial District Central Sub": [40.7060, -74.0150],
+        "Industrial Park Sector A": [40.7450, -74.0500],
+        "Industrial Park Flyover": [40.7420, -74.0450],
+        "Uptown Residential Area": [40.7500, -74.0000],
+        "North Suburbs Access Rd": [40.7700, -73.9800],
+        "North Suburbs Parkside": [40.7750, -73.9850],
+        "Waterfront Marina Blvd": [40.7020, -74.0180],
+        "City Center Square": [40.7180, -73.9980]
+    };
+
+    // 2. Render Traffic Hotspots Markers on Map
+    {% for t in traffic_records %}
+        var locName = "{{ t.location }}";
+        if (locationCoords[locName]) {
+            var coords = locationCoords[locName];
+            var cong = "{{ t.congestion_level }}";
+            var iconType = 'traffic-low';
+            if (cong === 'High') iconType = 'traffic-high';
+            else if (cong === 'Medium') iconType = 'traffic-med';
+            
+            addCityMarker(
+                coords[0], coords[1],
+                `<strong>Traffic: ${locName}</strong><br>Vehicles: {{ t.vehicle_count }} v/h<br>Avg Speed: {{ t.avg_speed }} km/h<br>Congestion: <span class="badge ${cong.toLowerCase()}">${cong}</span>`,
+                iconType
+            );
+        }
+    {% endfor %}
+
+    // 3. Render Pollution Stations Markers on Map
+    {% for p in pollution_records %}
+        var locName = "{{ p.location }}";
+        if (locationCoords[locName]) {
+            var coords = locationCoords[locName];
+            var aqi = {{ p.aqi }};
+            var iconType = 'pollution-med';
+            if (aqi > 150) iconType = 'pollution-high';
+            
+            addCityMarker(
+                coords[0] + 0.003, coords[1] + 0.003, // Slight offset so markers don't overlap
+                `<strong>Pollution Station: ${locName}</strong><br>AQI: <strong>${aqi}</strong><br>PM2.5: {{ p.pm25 }}<br>Noise: {{ p.noise_level }} dB`,
+                iconType
+            );
+        }
+    {% endfor %}
+
+    // 4. Render Service Outage Markers on Map
+    {% for s in service_records %}
+        {% if s.status in ['Maintenance', 'Outage', 'Under Repair'] %}
+            var locName = "{{ s.location }}";
+            if (locationCoords[locName]) {
+                var coords = locationCoords[locName];
+                addCityMarker(
+                    coords[0] - 0.003, coords[1] - 0.003, // Slight offset
+                    `<strong>Service Status: ${locName}</strong><br>Service: <strong>{{ s.service_name }}</strong><br>Status: <span class="badge {{ s.status.lower() }}">{{ s.status }}</span><br>Active Issues: {{ s.issue_count }}`,
+                    'service-outage'
+                );
+            }
+        {% endif %}
+    {% endfor %}
+
+    // 5. Render Citizen Complaint Pins on Map
+    {% for c in citizen_reports %}
+        var cLoc = "{{ c.location }}";
+        var parts = cLoc.split(',');
+        if (parts.length === 3) {
+            var lat = parseFloat(parts[0]);
+            var lng = parseFloat(parts[1]);
+            var locName = parts[2];
+            var status = "{{ c.status }}";
+            var iconType = 'report-pending';
+            if (status === 'In Progress') iconType = 'report-progress';
+            else if (status === 'Resolved') iconType = 'report-resolved';
+            
+            addCityMarker(
+                lat, lng,
+                `<strong>Complaint: {{ c.issue_type }}</strong><br>Desc: {{ c.description }}<br>Sector: ${locName}<br>Status: <span class="badge ${status.toLowerCase()}">${status}</span>`,
+                iconType
+            );
+        }
+    {% endfor %}
+
+    // 6. Draw Chart.js Line Chart (Traffic vs. Air Quality AQI timeline)
+    const ctxTrends = document.getElementById('trafficPollutionChart').getContext('2d');
+    
+    // Sort logs chronologically for graphs
+    const timeLabels = [];
+    const trafficData = [];
+    const aqiData = [];
+    
+    {% for t in traffic_records|reverse %}
+        timeLabels.push("{{ t.timestamp[:16].replace('T', ' ') }}");
+        trafficData.push({{ t.vehicle_count }});
+    {% endfor %}
+    
+    {% for p in pollution_records|reverse %}
+        // Padding/matching timeline slots
+        aqiData.push({{ p.aqi }});
+    {% endfor %}
+    
+    // Trim lists to match lengths
+    const maxLength = Math.min(timeLabels.length, trafficData.length, aqiData.length, 7);
+    const labels = timeLabels.slice(0, maxLength);
+    const speeds = trafficData.slice(0, maxLength);
+    const aqis = aqiData.slice(0, maxLength);
+
+    new Chart(ctxTrends, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Traffic Density (Vehicle Count)',
+                    data: speeds,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    yAxisID: 'y',
+                    tension: 0.3,
+                    fill: true
+                },
+                {
+                    label: 'Air Quality Index (AQI)',
+                    data: aqis,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    yAxisID: 'y1',
+                    tension: 0.3,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: { display: true, text: 'Vehicle Volume/hr' }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    grid: { drawOnChartArea: false },
+                    title: { display: true, text: 'AQI Value' }
+                }
+            }
+        }
+    });
+
+    // 7. Draw Chart.js Bar Chart (Public Services response times and issue counts)
+    const ctxServices = document.getElementById('servicesEfficiencyChart').getContext('2d');
+    
+    const serviceNames = [];
+    const responseTimes = [];
+    const issuesCount = [];
+    
+    {% for s in service_records %}
+        serviceNames.push("{{ s.service_name }} ({{ s.location.split(' ')[0] }})");
+        responseTimes.push({{ s.response_time }});
+        issuesCount.push({{ s.issue_count }});
+    {% endfor %}
+
+    new Chart(ctxServices, {
+        type: 'bar',
+        data: {
+            labels: serviceNames.slice(0, 5),
+            datasets: [
+                {
+                    label: 'Response Time (Hours)',
+                    data: responseTimes.slice(0, 5),
+                    backgroundColor: 'rgba(37, 99, 235, 0.7)',
+                    borderColor: 'var(--primary)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Active System Faults',
+                    data: issuesCount.slice(0, 5),
+                    backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                    borderColor: 'var(--danger)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Metrics count' }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

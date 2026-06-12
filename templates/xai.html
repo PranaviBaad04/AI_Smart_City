@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+
+{% block title %}Explainable AI (XAI) - AI Smart City Dashboard{% endblock %}
+{% block page_heading %}Explainable AI Module{% endblock %}
+{% block page_subheading %}Review machine learning prediction pathways, SHAP summary plots, and individual feature contributions{% endblock %}
+
+{% block content %}
+<div class="xai-flex">
+    <!-- COLUMN 1: TRAFFIC PREDICTION EXPLANATION -->
+    <div class="glass-panel">
+        <div class="panel-header">
+            <h2><i class="fa-solid fa-car"></i> Congestion Risk Model (Random Forest)</h2>
+        </div>
+        
+        <!-- Simulation Form -->
+        <h4 style="margin-bottom: 0.75rem; font-size: 0.95rem; color: var(--secondary-gray);">Simulator Inputs</h4>
+        <form action="{{ url_for('xai_explorer') }}" method="POST" style="margin-bottom: 1.5rem; background: rgba(255,255,255,0.4); border: 1px solid rgba(226,232,240,0.6); padding: 1rem; border-radius: 12px;">
+            <input type="hidden" name="model_type" value="traffic">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div class="form-group" style="margin-bottom: 0.5rem;">
+                    <label for="vehicle_count">Vehicle Density (v/h)</label>
+                    <input type="number" id="vehicle_count" name="vehicle_count" class="form-control" style="padding: 0.5rem 0.75rem;" value="{{ traffic_inputs.vehicle_count }}" min="5" max="300" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0.5rem;">
+                    <label for="avg_speed">Avg Speed (km/h)</label>
+                    <input type="number" id="avg_speed" name="avg_speed" class="form-control" style="padding: 0.5rem 0.75rem;" value="{{ traffic_inputs.avg_speed }}" min="1" max="120" step="0.1" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="hour">Hour of Observation</label>
+                    <input type="number" id="hour" name="hour" class="form-control" style="padding: 0.5rem 0.75rem;" value="{{ traffic_inputs.hour }}" min="0" max="23" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="is_weekend">Day Factor</label>
+                    <select id="is_weekend" name="is_weekend" class="form-control" style="padding: 0.5rem 0.75rem;" required>
+                        <option value="0" {% if traffic_inputs.is_weekend == 0 %}selected{% endif %}>Weekday</option>
+                        <option value="1" {% if traffic_inputs.is_weekend == 1 %}selected{% endif %}>Weekend</option>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm" style="width: 100%; margin-top: 1rem;">
+                <i class="fa-solid fa-rotate"></i> Re-Calculate Explanation
+            </button>
+        </form>
+
+        <!-- Prediction Output Badge -->
+        <div style="background: rgba(37,99,235,0.06); border: 1px dashed var(--primary); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted);">Model Assessment Output:</span>
+                <h3 style="font-size: 1.4rem; color: var(--primary); margin-top: 0.15rem;">{{ traffic_xai.prediction }} Congestion</h3>
+            </div>
+            <div style="text-align: right;">
+                <span class="badge {{ traffic_xai.prediction.lower() }}" style="font-size: 0.85rem; padding: 0.5rem 0.85rem;">
+                    {{ (traffic_xai.probabilities[traffic_xai.prediction] * 100)|round(0)|int }}% Confidence
+                </span>
+            </div>
+        </div>
+
+        <!-- Interactive Feature Importance Chart -->
+        <h4 style="margin-bottom: 0.75rem; font-size: 0.95rem;">Feature Contributions (SHAP Values)</h4>
+        <div class="chart-container" style="height: 180px; margin-bottom: 1.5rem;">
+            <canvas id="trafficShapChart"></canvas>
+        </div>
+
+        <!-- Explanation Summary List -->
+        <div style="background: #f8fafc; border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.85rem;">
+            <strong style="display: block; margin-bottom: 0.5rem; color: var(--secondary-dark);">Prediction Decision Tree Breakdown:</strong>
+            <ul style="padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.4rem;">
+                {% for item in traffic_xai.contributions %}
+                    <li>
+                        <strong>{{ item.display_name }}</strong>: Value of <strong>{{ item.value }}</strong> 
+                        <span style="color: {% if item.shap_value > 0 %}var(--danger){% else %}var(--success){% endif %}; font-weight: 600;">
+                            {% if item.shap_value > 0 %}increased{% else %}decreased{% endif %}
+                        </span> 
+                        risk probability by <strong>{{ (item.shap_value|abs * 100)|round(1) }}%</strong>.
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Static SHAP Summary Plot Matplotlib Output -->
+        <h4 style="margin-bottom: 0.75rem; font-size: 0.95rem;">SHAP Summary Scatter Plot (Global Model Weight)</h4>
+        <div class="shap-plot-wrapper">
+            <img src="{{ traffic_xai.plot_url }}?t={{ range(1000, 9999)|random }}" alt="Traffic SHAP Summary Plot">
+        </div>
+    </div>
+
+    <!-- COLUMN 2: POLLUTION PREDICTION EXPLANATION -->
+    <div class="glass-panel">
+        <div class="panel-header">
+            <h2><i class="fa-solid fa-wind"></i> Atmospheric AQI Model (Random Forest)</h2>
+        </div>
+        
+        <!-- Simulation Form -->
+        <h4 style="margin-bottom: 0.75rem; font-size: 0.95rem; color: var(--secondary-gray);">Simulator Inputs</h4>
+        <form action="{{ url_for('xai_explorer') }}" method="POST" style="margin-bottom: 1.5rem; background: rgba(255,255,255,0.4); border: 1px solid rgba(226,232,240,0.6); padding: 1rem; border-radius: 12px;">
+            <input type="hidden" name="model_type" value="pollution">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div class="form-group" style="margin-bottom: 0.5rem;">
+                    <label for="pm25">PM2.5 (ug/m³)</label>
+                    <input type="number" id="pm25" name="pm25" class="form-control" style="padding: 0.5rem 0.75rem;" value="{{ pollution_inputs.pm25 }}" min="0" max="300" step="0.1" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0.5rem;">
+                    <label for="pm10">PM10 (ug/m³)</label>
+                    <input type="number" id="pm10" name="pm10" class="form-control" style="padding: 0.5rem 0.75rem;" value="{{ pollution_inputs.pm10 }}" min="0" max="400" step="0.1" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="co2">CO2 Volume (ppm)</label>
+                    <input type="number" id="co2" name="co2" class="form-control" style="padding: 0.5rem 0.75rem;" value="{{ pollution_inputs.co2 }}" min="200" max="1500" step="0.1" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="noise_level">Noise decibels (dB)</label>
+                    <input type="number" id="noise_level" name="noise_level" class="form-control" style="padding: 0.5rem 0.75rem;" value="{{ pollution_inputs.noise_level }}" min="20" max="130" step="0.1" required>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm" style="width: 100%; margin-top: 1rem;">
+                <i class="fa-solid fa-rotate"></i> Re-Calculate Explanation
+            </button>
+        </form>
+
+        <!-- Prediction Output Badge -->
+        <div style="background: rgba(245,158,11,0.06); border: 1px dashed var(--warning); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted);">Model AQI Forecast:</span>
+                <h3 style="font-size: 1.4rem; color: var(--warning); margin-top: 0.15rem;">AQI: {{ pollution_xai.predicted_aqi }}</h3>
+            </div>
+            <div style="text-align: right;">
+                <span class="badge {% if pollution_xai.predicted_aqi <= 50 %}low{% elif pollution_xai.predicted_aqi <= 100 %}medium{% else %}high{% endif %}" style="font-size: 0.85rem; padding: 0.5rem 0.85rem;">
+                    {{ pollution_xai.risk_level }}
+                </span>
+            </div>
+        </div>
+
+        <!-- Interactive Feature Importance Chart -->
+        <h4 style="margin-bottom: 0.75rem; font-size: 0.95rem;">Feature Contributions (SHAP Values)</h4>
+        <div class="chart-container" style="height: 180px; margin-bottom: 1.5rem;">
+            <canvas id="pollutionShapChart"></canvas>
+        </div>
+
+        <!-- Explanation Summary List -->
+        <div style="background: #f8fafc; border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.85rem;">
+            <strong style="display: block; margin-bottom: 0.5rem; color: var(--secondary-dark);">Prediction Decision Tree Breakdown:</strong>
+            <ul style="padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.4rem;">
+                {% for item in pollution_xai.contributions %}
+                    <li>
+                        <strong>{{ item.display_name }}</strong>: Concentration of <strong>{{ item.value }}</strong> 
+                        <span style="color: {% if item.shap_value > 0 %}var(--danger){% else %}var(--success){% endif %}; font-weight: 600;">
+                            {% if item.shap_value > 0 %}increased{% else %}decreased{% endif %}
+                        </span> 
+                        predicted AQI index by <strong>{{ item.shap_value|round(2) }} points</strong>.
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Static SHAP Summary Plot Matplotlib Output -->
+        <h4 style="margin-bottom: 0.75rem; font-size: 0.95rem;">SHAP Summary Scatter Plot (Global Model Weight)</h4>
+        <div class="shap-plot-wrapper">
+            <img src="{{ pollution_xai.plot_url }}?t={{ range(1000, 9999)|random }}" alt="Pollution SHAP Summary Plot">
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Draw Traffic SHAP bar chart (Horizontal)
+    const ctxTraffic = document.getElementById('trafficShapChart').getContext('2d');
+    const trafficLabels = [];
+    const trafficShapValues = [];
+    const trafficColors = [];
+    
+    {% for item in traffic_xai.contributions %}
+        trafficLabels.push("{{ item.display_name }}");
+        var val = {{ item.shap_value }};
+        trafficShapValues.push(val);
+        // Positive = red (increases congestion), Negative = green (decreases congestion)
+        trafficColors.push(val > 0 ? '#ef4444' : '#10b981');
+    {% endfor %}
+
+    new Chart(ctxTraffic, {
+        type: 'bar',
+        data: {
+            labels: trafficLabels,
+            datasets: [{
+                label: 'SHAP Contribution Value (probability impact)',
+                data: trafficShapValues,
+                backgroundColor: trafficColors,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            indexAxis: 'y', // Make bar horizontal
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'Contribution impact' }
+                }
+            }
+        }
+    });
+
+    // 2. Draw Pollution SHAP bar chart (Horizontal)
+    const ctxPollution = document.getElementById('pollutionShapChart').getContext('2d');
+    const pollutionLabels = [];
+    const pollutionShapValues = [];
+    const pollutionColors = [];
+    
+    {% for item in pollution_xai.contributions %}
+        pollutionLabels.push("{{ item.display_name }}");
+        var val = {{ item.shap_value }};
+        pollutionShapValues.push(val);
+        // Positive = red (increases pollution), Negative = green (reduces pollution)
+        pollutionColors.push(val > 0 ? '#ef4444' : '#10b981');
+    {% endfor %}
+
+    new Chart(ctxPollution, {
+        type: 'bar',
+        data: {
+            labels: pollutionLabels,
+            datasets: [{
+                label: 'SHAP Contribution Value (AQI points impact)',
+                data: pollutionShapValues,
+                backgroundColor: pollutionColors,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'Impact on predicted AQI (points)' }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

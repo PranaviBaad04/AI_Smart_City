@@ -1,0 +1,313 @@
+{% extends 'base.html' %}
+
+{% block title %}Public Services - AI Smart City Dashboard{% endblock %}
+{% block page_heading %}Public Service Insights Module{% endblock %}
+{% block page_subheading %}Track city utility efficiencies, log service outage incidents, and review AI allocation recommendations{% endblock %}
+
+{% block content %}
+<!-- KPI stats summary row -->
+<div class="grid-kpis" style="margin-bottom: 2rem;">
+    <div class="kpi-card" style="border-bottom-color: var(--primary);">
+        <div class="kpi-details">
+            <h3>Avg Response Time</h3>
+            {% set avg_resp = sum(float(x.get('response_time', 0)) for x in service_records) / service_records|length if service_records else 0 %}
+            <div class="value">{{ avg_resp|round(1) }} <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">hours</span></div>
+        </div>
+        <div class="kpi-icon" style="background: rgba(37, 99, 235, 0.1); color: var(--primary);">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+        </div>
+    </div>
+    
+    <div class="kpi-card" style="border-bottom-color: var(--danger);">
+        <div class="kpi-details">
+            <h3>Active Service Faults</h3>
+            {% set total_faults = sum(int(x.get('issue_count', 0)) for x in service_records) %}
+            <div class="value">{{ total_faults }} <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">locations</span></div>
+        </div>
+        <div class="kpi-icon" style="background: rgba(239, 68, 68, 0.1); color: var(--danger);">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+    </div>
+    
+    <div class="kpi-card" style="border-bottom-color: var(--success);">
+        <div class="kpi-details">
+            <h3>Operational Ratio</h3>
+            {% set total_sects = service_records|length %}
+            {% set operational_sects = sum(1 for x in service_records if x.get('status') == 'Operational') %}
+            {% set ratio = (operational_sects / total_sects * 100) if total_sects else 100 %}
+            <div class="value">{{ ratio|round(0)|int }}% <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">operational</span></div>
+        </div>
+        <div class="kpi-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+            <i class="fa-solid fa-circle-check"></i>
+        </div>
+    </div>
+</div>
+
+<!-- Section: AI Resource Allocation Advisor -->
+<div class="glass-panel" style="margin-bottom: 2.5rem;">
+    <div class="panel-header">
+        <h2><i class="fa-solid fa-brain"></i> AI Resource Allocation Engine</h2>
+        <button id="btn-run-ai-services" class="btn btn-primary btn-sm">
+            <i class="fa-solid fa-circle-play"></i> Run Allocation Optimization
+        </button>
+    </div>
+    
+    <div id="services-ai-box" class="ai-card" style="display: none;">
+        <div class="ai-card-header">
+            <i class="fa-solid fa-robot"></i>
+            <h3>Groq Llama 3.1 Resource Allocation Model</h3>
+        </div>
+        <div class="ai-recommendation-content">
+            <div style="margin-bottom: 0.75rem;">
+                <strong>Service Level Agreement (SLA) Threat:</strong> 
+                <span id="ai-risk-badge" class="badge">PENDING</span>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <strong>Critical Maintenance Bottlenecks:</strong>
+                <p id="ai-issues-text" style="margin-top: 0.25rem; font-style: italic; color: var(--secondary-gray);"></p>
+            </div>
+            <div>
+                <strong>Strategic Resource Distribution Plans:</strong>
+                <ul id="ai-recommendations-list"></ul>
+            </div>
+        </div>
+    </div>
+    <div id="ai-loading" style="display: none; text-align: center; padding: 1rem;">
+        <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary);"></i>
+        <p style="margin-top: 0.5rem; color: var(--text-muted);">Groq API running municipal utility resource routing simulator...</p>
+    </div>
+</div>
+
+<!-- Section: Service logs table -->
+<div class="glass-panel">
+    <div class="panel-header">
+        <h2><i class="fa-solid fa-circle-nodes"></i> Municipal Utility Status Ledger</h2>
+        {% if current_user and current_user.role in ['admin', 'officer'] %}
+            <button class="btn btn-primary btn-sm" onclick="openModal('addServiceModal')">
+                <i class="fa-solid fa-plus"></i> Add Utility Log
+            </button>
+        {% endif %}
+    </div>
+
+    <div class="table-wrapper">
+        <table class="smart-table">
+            <thead>
+                <tr>
+                    <th>Service Division</th>
+                    <th>Jurisdiction Sector</th>
+                    <th>Operating Status</th>
+                    <th>Mean Response Time</th>
+                    <th>Active Incidents Logged</th>
+                    <th>Observed At</th>
+                    {% if current_user and current_user.role in ['admin', 'officer'] %}
+                        <th>Operations</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% if service_records %}
+                    {% for r in service_records %}
+                        <tr>
+                            <td><strong>{{ r.service_name }}</strong></td>
+                            <td>{{ r.location }}</td>
+                            <td>
+                                <span class="badge {{ r.status.lower().replace(' ', '-') }}">
+                                    <i class="fa-solid {% if r.status == 'Operational' %}fa-circle-check{% elif r.status == 'Maintenance' %}fa-screwdriver-wrench{% elif r.status == 'Outage' %}fa-circle-exclamation{% else %}fa-wrench{% endif %}" style="font-size: 0.8rem; margin-right: 0.25rem;"></i>
+                                    {{ r.status }}
+                                </span>
+                            </td>
+                            <td>{{ r.response_time }} hours</td>
+                            <td>{{ r.issue_count }} pending</td>
+                            <td>{{ r.timestamp[:16].replace('T', ' ') }}</td>
+                            {% if current_user and current_user.role in ['admin', 'officer'] %}
+                                <td>
+                                    <button class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.5rem;" onclick="openUpdateServiceModal('{{ r.id }}', '{{ r.service_name }}', '{{ r.location }}', '{{ r.status }}', '{{ r.response_time }}', '{{ r.issue_count }}')">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </button>
+                                    <form action="{{ url_for('services.delete_service', record_id=r.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Remove this utility service log?');">
+                                        <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.25rem 0.5rem;">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">No utility status entries recorded yet.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ==========================================
+     MODALS FOR SERVICE CRUD
+     ========================================== -->
+{% if current_user and current_user.role in ['admin', 'officer'] %}
+<!-- Modal: Add Service Log -->
+<div id="addServiceModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h3 style="margin-bottom: 1.5rem;"><i class="fa-solid fa-plus-circle"></i> Log Utility Incident</h3>
+        
+        <form action="{{ url_for('services.add_service') }}" method="POST">
+            <div class="form-group">
+                <label for="service_name">Service Division</label>
+                <select id="service_name" name="service_name" class="form-control" required>
+                    <option value="Water Supply">Water Supply</option>
+                    <option value="Electricity">Electricity</option>
+                    <option value="Waste Management">Waste Management</option>
+                    <option value="Road Maintenance">Road Maintenance</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="location">Jurisdiction Sector Location</label>
+                <select id="location" name="location" class="form-control" required>
+                    <option value="Downtown Broadway & 5th Ave">Downtown Broadway & 5th Ave</option>
+                    <option value="Uptown Residential Area">Uptown Residential Area</option>
+                    <option value="Industrial Park Sector A">Industrial Park Sector A</option>
+                    <option value="Westside Ring Road Sector 2">Westside Ring Road Sector 2</option>
+                    <option value="Financial District Central Sub">Financial District Central Sub</option>
+                    <option value="City Center Square">City Center Square</option>
+                    <option value="North Suburbs Access Rd">North Suburbs Access Rd</option>
+                    <option value="East Bridge Link">East Bridge Link</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="status">Operating Status</label>
+                <select id="status" name="status" class="form-control" required>
+                    <option value="Operational">Operational (Full Service)</option>
+                    <option value="Maintenance">Maintenance (Routine Checks)</option>
+                    <option value="Under Repair">Under Repair (Active Incidents)</option>
+                    <option value="Outage">Outage (Out of Service)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="response_time">Average Response Time (hours)</label>
+                <input type="number" id="response_time" name="response_time" class="form-control" min="0" step="0.1" placeholder="2.5" required>
+            </div>
+
+            <div class="form-group">
+                <label for="issue_count">Active Fault Count</label>
+                <input type="number" id="issue_count" name="issue_count" class="form-control" min="0" placeholder="2" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                <i class="fa-solid fa-floppy-disk"></i> Save Entry
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Update Service Log -->
+<div id="updateServiceModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h3 style="margin-bottom: 1.5rem;"><i class="fa-solid fa-pen-to-square"></i> Modify Utility Incident</h3>
+        
+        <form action="" method="POST">
+            <div class="form-group">
+                <label for="edit_service_name">Service Division</label>
+                <input type="text" id="edit_service_name" name="service_name" class="form-control" readonly>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit_location">Jurisdiction Sector</label>
+                <input type="text" id="edit_location" name="location" class="form-control" readonly>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit_status">Operating Status</label>
+                <select id="edit_status" name="status" class="form-control" required>
+                    <option value="Operational">Operational</option>
+                    <option value="Maintenance">Maintenance</option>
+                    <option value="Under Repair">Under Repair</option>
+                    <option value="Outage">Outage</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit_response_time">Response Time (hours)</label>
+                <input type="number" id="edit_response_time" name="response_time" class="form-control" min="0" step="0.1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="edit_issue_count">Active Faults</label>
+                <input type="number" id="edit_issue_count" name="issue_count" class="form-control" min="0" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                <i class="fa-solid fa-floppy-disk"></i> Update Entry
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const aiBtn = document.getElementById('btn-run-ai-services');
+    const aiBox = document.getElementById('services-ai-box');
+    const loading = document.getElementById('ai-loading');
+    
+    if (aiBtn) {
+        aiBtn.addEventListener('click', () => {
+            aiBox.style.display = 'none';
+            loading.style.display = 'block';
+            
+            fetch('/services/ai-analysis', {
+                method: 'POST'
+            })
+            .then(res => res.json())
+            .then(data => {
+                loading.style.display = 'none';
+                
+                // Update Badge
+                const badge = document.getElementById('ai-risk-badge');
+                badge.textContent = data.risk_level;
+                badge.className = `badge ${data.risk_level.toLowerCase()}`;
+                
+                // Update Issues
+                document.getElementById('ai-issues-text').textContent = data.issues;
+                
+                // Update Recommendations
+                const list = document.getElementById('ai-recommendations-list');
+                list.innerHTML = '';
+                
+                let items = [];
+                if (Array.isArray(data.recommendations)) {
+                    items = data.recommendations;
+                } else {
+                    items = data.recommendations.split(/\n|•|-|\d+\./).map(x => x.trim()).filter(x => x.length > 0);
+                }
+                
+                if (items.length === 0 && data.recommendations) {
+                    items = [data.recommendations];
+                }
+                
+                items.forEach(rec => {
+                    const li = document.createElement('li');
+                    li.textContent = rec;
+                    list.appendChild(li);
+                });
+                
+                aiBox.style.display = 'block';
+            })
+            .catch(err => {
+                console.error(err);
+                loading.style.display = 'none';
+                alert('Connection to Groq Llama 3.1 failed. Please check credentials.');
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

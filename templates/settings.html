@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+
+{% block title %}Settings - AI Smart City Dashboard{% endblock %}
+{% block page_heading %}System Settings{% endblock %}
+{% block page_subheading %}Configure profile details and review system integration status{% endblock %}
+
+{% block content %}
+<div class="grid-dashboard">
+    <!-- Profile Settings Card -->
+    <div class="glass-panel" style="margin-bottom: 0;">
+        <div class="panel-header">
+            <h2><i class="fa-solid fa-user-gear"></i> Profile Configuration</h2>
+        </div>
+        
+        <form action="{{ url_for('settings') }}" method="POST">
+            <div class="form-group">
+                <label for="name">Display Name</label>
+                <input type="text" id="name" name="name" class="form-control" value="{{ current_user.name }}" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" class="form-control" value="{{ current_user.email }}" disabled>
+                <small style="font-size: 0.75rem; color: var(--text-muted);">Email cannot be changed from this panel.</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="role">Access Role Level</label>
+                <input type="text" id="role" class="form-control" value="{{ current_user.role|capitalize }}" disabled>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                <i class="fa-solid fa-floppy-disk"></i> Save Changes
+            </button>
+        </form>
+    </div>
+
+    <!-- System Integration Status Card -->
+    <div class="glass-panel" style="margin-bottom: 0;">
+        <div class="panel-header">
+            <h2><i class="fa-solid fa-server"></i> System Status Console</h2>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <!-- Supabase Connection Status -->
+            <div style="background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 12px; padding: 1rem; display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(16, 185, 129, 0.15); display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-database" style="color: var(--success); font-size: 1.2rem;"></i>
+                </div>
+                <div>
+                    <strong style="font-size: 0.95rem; color: var(--secondary-dark);">Supabase PostgreSQL</strong>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Connected &bull; nxrxbrnmzqvznlgpnfju.supabase.co</p>
+                </div>
+                <span class="badge operational" style="margin-left: auto;"><i class="fa-solid fa-circle-check"></i> Online</span>
+            </div>
+            
+            <!-- Groq LLM Status -->
+            <div style="background: rgba(37, 99, 235, 0.06); border: 1px solid rgba(37, 99, 235, 0.2); border-radius: 12px; padding: 1rem; display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(37, 99, 235, 0.15); display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-brain" style="color: var(--primary); font-size: 1.2rem;"></i>
+                </div>
+                <div>
+                    <strong style="font-size: 0.95rem; color: var(--secondary-dark);">Groq Llama 3.1 (8B Instant)</strong>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">AI Recommendation & Chatbot Engine</p>
+                </div>
+                <span class="badge operational" style="margin-left: auto;"><i class="fa-solid fa-circle-check"></i> Active</span>
+            </div>
+
+            <!-- SHAP / ML Explainer Status -->
+            <div style="background: rgba(245, 158, 11, 0.06); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 12px; padding: 1rem; display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(245, 158, 11, 0.15); display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-chart-line" style="color: var(--warning); font-size: 1.2rem;"></i>
+                </div>
+                <div>
+                    <strong style="font-size: 0.95rem; color: var(--secondary-dark);">SHAP Explainable AI Module</strong>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">RandomForest + TreeExplainer (scikit-learn)</p>
+                </div>
+                <span class="badge operational" style="margin-left: auto;"><i class="fa-solid fa-circle-check"></i> Ready</span>
+            </div>
+            
+            <!-- Leaflet.js Map Status -->
+            <div style="background: rgba(6, 182, 212, 0.06); border: 1px solid rgba(6, 182, 212, 0.2); border-radius: 12px; padding: 1rem; display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(6, 182, 212, 0.15); display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-map" style="color: var(--info); font-size: 1.2rem;"></i>
+                </div>
+                <div>
+                    <strong style="font-size: 0.95rem; color: var(--secondary-dark);">Leaflet.js / OpenStreetMap</strong>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Geospatial Layer v1.9.4 + CARTO Tiles</p>
+                </div>
+                <span class="badge operational" style="margin-left: auto;"><i class="fa-solid fa-circle-check"></i> Loaded</span>
+            </div>
+        </div>
+
+        <!-- Demo Login Cheat Sheet (for convenient development) -->
+        <div style="margin-top: 1.5rem; padding: 1.25rem; background: rgba(248, 250, 252, 0.8); border: 1px dashed rgba(226, 232, 240, 0.8); border-radius: 12px;">
+            <h4 style="font-size: 0.9rem; color: var(--secondary-gray); margin-bottom: 0.75rem;"><i class="fa-solid fa-key"></i> Demo Access Credentials (Development)</h4>
+            <table style="font-size: 0.8rem; width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <th style="padding: 0.35rem 0; text-align: left; color: var(--text-muted);">Role</th>
+                        <th style="padding: 0.35rem 0; text-align: left; color: var(--text-muted);">Email</th>
+                        <th style="padding: 0.35rem 0; text-align: left; color: var(--text-muted);">Password</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding: 0.35rem 0;"><span class="badge operational">Admin</span></td>
+                        <td style="padding: 0.35rem 0;">admin@smartcity.gov</td>
+                        <td style="padding: 0.35rem 0;"><code>admin123</code></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.35rem 0;"><span class="badge info">Officer</span></td>
+                        <td style="padding: 0.35rem 0;">officer@smartcity.gov</td>
+                        <td style="padding: 0.35rem 0;"><code>officer123</code></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.35rem 0;"><span class="badge warning">Citizen</span></td>
+                        <td style="padding: 0.35rem 0;">jane@gmail.com</td>
+                        <td style="padding: 0.35rem 0;"><code>citizen123</code></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}Reports Generator - AI Smart City Dashboard{% endblock %}
+{% block page_heading %}Reports & Data Exports{% endblock %}
+{% block page_subheading %}Download municipal databases as raw CSV files or compile styled administrative PDF reports{% endblock %}
+
+{% block content %}
+<div class="grid-dashboard">
+    <!-- Compilation Card 1: Compile PDF Reports -->
+    <div class="glass-panel" style="margin-bottom: 0;">
+        <div class="panel-header">
+            <h2><i class="fa-solid fa-file-pdf" style="color: #ef4444;"></i> Compile Smart City Audit PDF</h2>
+        </div>
+        
+        <p style="font-size: 0.95rem; color: var(--text-main); margin-bottom: 1.5rem;">
+            Generates a multi-section PDF document containing the executive KPI grids, top-performing utility logs, active traffic congestion intersections, air quality scores, and the citizen complaints ledger.
+        </p>
+        
+        <form action="{{ url_for('reports.export_pdf') }}" method="GET" target="_blank">
+            <div class="form-group">
+                <label for="type">Select Report Audit Interval</label>
+                <select id="type" name="type" class="form-control" required>
+                    <option value="daily">Daily Administrative Audit (Previous 24 Hours)</option>
+                    <option value="weekly">Weekly Municipal Status Summary (Previous 7 Days)</option>
+                    <option value="monthly">Monthly Smart Infrastructure Forecast (Previous 30 Days)</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; background: #ef4444; border-bottom: 3px solid #b91c1c;">
+                <i class="fa-solid fa-file-arrow-down"></i> Compile PDF Report
+            </button>
+        </form>
+    </div>
+
+    <!-- Compilation Card 2: Export Raw CSV Sheets -->
+    <div class="glass-panel" style="margin-bottom: 0;">
+        <div class="panel-header">
+            <h2><i class="fa-solid fa-file-csv" style="color: #10b981;"></i> Export Database CSV Datasets</h2>
+        </div>
+        
+        <p style="font-size: 0.95rem; color: var(--text-main); margin-bottom: 1.5rem;">
+            Extracts raw PostgreSQL database records into structured CSV spreadsheet sheets. Useful for external model loading, Excel audits, or administrative archives.
+        </p>
+        
+        <form action="{{ url_for('reports.export_csv') }}" method="GET">
+            <input type="hidden" name="type" value="daily">
+            
+            <div class="form-group">
+                <label for="dataset">Target Database Table</label>
+                <select id="dataset" name="dataset" class="form-control" required>
+                    <option value="traffic">Traffic Intersection Monitoring logs (traffic_data)</option>
+                    <option value="pollution">Atmospheric Air Quality station logs (pollution_data)</option>
+                    <option value="services">Municipal Utility Status records (service_data)</option>
+                    <option value="citizen_reports">Citizen Service Complaint Ledger (citizen_reports)</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; background: #10b981; border-bottom: 3px solid #047857;">
+                <i class="fa-solid fa-file-excel"></i> Download CSV Dataset
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

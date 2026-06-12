@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+
+{% block title %}Citizen Reports - AI Smart City Dashboard{% endblock %}
+{% block page_heading %}Citizen Reporting System{% endblock %}
+{% block page_subheading %}Submit local infrastructure issues, select coordinates on map, and track resolution progress{% endblock %}
+
+{% block content %}
+<div class="grid-dashboard">
+    <!-- Left Column: Submit Complaint Form -->
+    <div class="glass-panel" style="margin-bottom: 0;">
+        <div class="panel-header">
+            <h2><i class="fa-solid fa-pen-to-square"></i> File Municipal Complaint</h2>
+        </div>
+        
+        <form action="{{ url_for('add_citizen_report') }}" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="issue_type">Issue Classification Category</label>
+                <select id="issue_type" name="issue_type" class="form-control" required>
+                    <option value="Pothole Report">Pothole Report (Road Maintenance)</option>
+                    <option value="Garbage Issue">Garbage Issue (Waste Management)</option>
+                    <option value="Water Leakage">Water Leakage (Water Supply)</option>
+                    <option value="Street Light Failure">Street Light Failure (Electricity Grid)</option>
+                    <option value="Traffic Violations">Traffic Violations (Traffic Division)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="description">Detailed Description</label>
+                <textarea id="description" name="description" class="form-control" rows="4" placeholder="Describe the physical hazard, size, blocking lanes, or other specific details..." required></textarea>
+            </div>
+
+            <!-- Coordinate picker instruction banner -->
+            <div class="form-group">
+                <label>Incident Location Geopicker</label>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                    Click directly on the map panel below to pin coordinates:
+                </p>
+                <div id="picker-map" style="height: 200px; border-radius: 8px; border: 1px solid var(--border-glass); margin-bottom: 0.75rem;"></div>
+                
+                <input type="hidden" id="location" name="location" required>
+                <div id="coordinate-display" style="font-size: 0.85rem; color: var(--text-muted); background: rgba(226, 232, 240, 0.4); padding: 0.65rem 1rem; border-radius: 8px;">
+                    Selected Coordinate: <span style="font-style: italic;">Select location on map...</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="image">Attach Visual Evidence Image</label>
+                <input type="file" id="image" name="image" class="form-control" accept="image/*" style="padding: 0.5rem 0.75rem;">
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                <i class="fa-solid fa-paper-plane"></i> Dispatch Report
+            </button>
+        </form>
+    </div>
+
+    <!-- Right Column: Status Timeline & History -->
+    <div class="glass-panel" style="margin-bottom: 0; display: flex; flex-direction: column;">
+        <div class="panel-header">
+            <h2><i class="fa-solid fa-timeline"></i> Action Tracking Timeline</h2>
+            <span class="badge info" style="text-transform: uppercase;">
+                {{ reports|length }} TOTAL FILINGS
+            </span>
+        </div>
+        
+        <div style="flex-grow: 1; overflow-y: auto; max-height: 720px; padding-right: 0.5rem;">
+            {% if reports %}
+                {% for r in reports %}
+                    <div style="background: rgba(255, 255, 255, 0.7); border: 1px solid rgba(226,232,240,0.6); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; box-shadow: 0 4px 15px rgba(0,0,0,0.01); transition: var(--transition);">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                            <h4 style="font-size: 1.05rem; color: var(--primary);">{{ r.issue_type }}</h4>
+                            <span class="badge {{ r.status.lower().replace(' ', '-') }}">
+                                {{ r.status }}
+                            </span>
+                        </div>
+                        
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; font-style: italic;">
+                            Posted on {{ r.timestamp[:16].replace('T', ' ') }}
+                        </p>
+                        
+                        <p style="font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--text-main);">
+                            {{ r.description }}
+                        </p>
+                        
+                        <!-- Attach image display if exists -->
+                        {% if r.image_url %}
+                            <div style="margin-bottom: 0.75rem; border-radius: 8px; overflow: hidden; border: 1px solid rgba(226, 232, 240, 0.8); max-height: 180px;">
+                                <img src="{{ r.image_url }}" alt="Evidence" style="width: 100%; height: 100%; object-fit: cover;">
+                            </div>
+                        {% endif %}
+                        
+                        <div style="font-size: 0.8rem; color: var(--secondary-gray); margin-bottom: 0.75rem; background: #f8fafc; padding: 0.4rem 0.65rem; border-radius: 6px;">
+                            <i class="fa-solid fa-location-dot"></i> 
+                            {% set parts = r.location.split(',', 2) %}
+                            {{ parts[-1] if parts|length == 3 else r.location }}
+                        </div>
+
+                        <!-- Officer/Admin role status modification -->
+                        {% if current_user and current_user.role in ['admin', 'officer'] %}
+                            <div style="display: flex; gap: 0.5rem; align-items: center; border-top: 1px solid rgba(226, 232, 240, 0.6); padding-top: 0.75rem; margin-top: 0.75rem;">
+                                <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">STATUS ACTION:</span>
+                                
+                                <select class="form-control" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; width: auto; height: auto; flex-grow: 1;" onchange="updateReportStatus('{{ r.id }}', this.value)">
+                                    <option value="Pending" {% if r.status == 'Pending' %}selected{% endif %}>Pending</option>
+                                    <option value="In Progress" {% if r.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                    <option value="Resolved" {% if r.status == 'Resolved' %}selected{% endif %}>Resolved</option>
+                                </select>
+                                
+                                {% if current_user.role == 'admin' %}
+                                    <button class="btn btn-danger btn-sm" style="padding: 0.25rem 0.5rem;" onclick="deleteReport('{{ r.id }}')" title="Remove Complaint">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div style="text-align: center; color: var(--text-muted); padding: 4rem 1rem;">
+                    <i class="fa-solid fa-bullhorn" style="font-size: 3rem; opacity: 0.2; margin-bottom: 1rem;"></i>
+                    <p>No complaints filed yet. Pin the map and write details to dispatch your first report.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize picker map centered on Metroville coordinates
+    const pickerMap = initSmartCityMap('picker-map', 40.7128, -74.0060, 12);
+    
+    // Enable geoloc click picker
+    enableMapCoordinatePicker('location', 'coordinate-display');
+});
+</script>
+{% endblock %}

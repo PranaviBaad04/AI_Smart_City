@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+
+{% block title %}AI Insights - AI Smart City Dashboard{% endblock %}
+{% block page_heading %}AI recommendation Center{% endblock %}
+{% block page_subheading %}Consult MetroBot, the smart city administrative AI chat helper{% endblock %}
+
+{% block content %}
+<div class="grid-dashboard">
+    <!-- Chatbot Assistant Panel -->
+    <div class="glass-panel" style="margin-bottom: 0;">
+        <div class="panel-header">
+            <h2><i class="fa-solid fa-robot"></i> MetroBot Assistant</h2>
+            <span class="badge operational"><i class="fa-solid fa-circle-play fa-fade"></i> AI Online</span>
+        </div>
+        
+        <div class="chatbot-chat-box">
+            <!-- Messages Log -->
+            <div id="chat-messages" class="chatbot-messages">
+                <div class="chat-msg bot">
+                    <p>Hello! I am <strong>MetroBot</strong>, your smart city assistant. How can I help you analyze city infrastructure, check traffic reports, or optimize municipal services today?</p>
+                </div>
+            </div>
+            
+            <!-- Message Input Area -->
+            <div class="chatbot-input-bar">
+                <input type="text" id="chat-input" class="form-control" placeholder="Ask about traffic, utility faults, or reports..." autocomplete="off">
+                <button id="chat-send-btn" class="btn btn-primary">
+                    <i class="fa-solid fa-paper-plane"></i> Send
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI recommendations instructions Card -->
+    <div class="glass-panel" style="margin-bottom: 0;">
+        <div class="panel-header">
+            <h2><i class="fa-solid fa-graduation-cap"></i> Urban Advisory Guidance</h2>
+        </div>
+        
+        <div style="font-size: 0.95rem; color: var(--text-main); display: flex; flex-direction: column; gap: 1.25rem;">
+            <p>
+                MetroBot is powered by a fine-tuned **Llama 3.1 LLM via Groq API**, allowing rapid processing of city data. You can query statistics or ask for direct recommendations:
+            </p>
+            
+            <div style="background: rgba(37,99,235,0.05); border: 1px dashed var(--primary); border-radius: 12px; padding: 1rem;">
+                <h4 style="font-size: 0.9rem; color: var(--primary); margin-bottom: 0.5rem;"><i class="fa-regular fa-lightbulb"></i> Example Queries:</h4>
+                <ul style="padding-left: 1.25rem; font-size: 0.85rem; font-style: italic; display: flex; flex-direction: column; gap: 0.4rem;">
+                    <li>"What is the average response time for road maintenance?"</li>
+                    <li>"Suggest traffic mitigation steps for Downtown Broadway."</li>
+                    <li>"Is the air quality index in Industrial Park safe?"</li>
+                    <li>"Draft a summary report of pending citizen complaints."</li>
+                </ul>
+            </div>
+            
+            <h4 style="font-size: 1rem; color: var(--secondary-dark); border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem;">Quick Navigation Guides:</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <a href="{{ url_for('traffic.list_traffic') }}" class="btn btn-secondary btn-sm" style="text-align: left; justify-content: flex-start;">
+                    <i class="fa-solid fa-car"></i> Traffic Audits
+                </a>
+                <a href="{{ url_for('pollution.list_pollution') }}" class="btn btn-secondary btn-sm" style="text-align: left; justify-content: flex-start;">
+                    <i class="fa-solid fa-wind"></i> Pollution Levels
+                </a>
+                <a href="{{ url_for('services.list_services') }}" class="btn btn-secondary btn-sm" style="text-align: left; justify-content: flex-start;">
+                    <i class="fa-solid fa-lightbulb"></i> Utilities Status
+                </a>
+                <a href="{{ url_for('xai_explorer') }}" class="btn btn-secondary btn-sm" style="text-align: left; justify-content: flex-start;">
+                    <i class="fa-solid fa-chart-line"></i> SHAP Explainers
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('chat-send-btn');
+    const messagesBox = document.getElementById('chat-messages');
+    
+    // Store chat message logs
+    const chatHistory = [
+        {"role": "assistant", "content": "Hello! I am MetroBot, your smart city assistant. How can I help you analyze city infrastructure, check traffic reports, or optimize municipal services today?"}
+    ];
+
+    function appendMessage(role, content) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `chat-msg ${role === 'user' ? 'user' : 'bot'}`;
+        msgDiv.innerHTML = `<p>${content.replace(/\n/g, '<br>')}</p>`;
+        messagesBox.appendChild(msgDiv);
+        
+        // Auto Scroll to bottom
+        messagesBox.scrollTop = messagesBox.scrollHeight;
+    }
+
+    function sendMessage() {
+        const text = chatInput.value.trim();
+        if (!text) return;
+        
+        // Append user message
+        appendMessage('user', text);
+        chatHistory.push({"role": "user", "content": text});
+        chatInput.value = '';
+        
+        // Disable inputs while loading
+        chatInput.disabled = true;
+        sendBtn.disabled = true;
+        
+        // Show temporary typing loader
+        const loader = document.createElement('div');
+        loader.className = 'chat-msg bot typing-msg';
+        loader.innerHTML = '<p><i class="fa-solid fa-circle-notch fa-spin"></i> Bot is thinking...</p>';
+        messagesBox.appendChild(loader);
+        messagesBox.scrollTop = messagesBox.scrollHeight;
+        
+        fetch('/api/chatbot', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ messages: chatHistory })
+        })
+        .then(res => res.json())
+        .then(data => {
+            // Remove typing loader
+            const temp = messagesBox.querySelector('.typing-msg');
+            if (temp) temp.remove();
+            
+            // Append bot message
+            const botReply = data.response || "Sorry, I encountered an error processing that request.";
+            appendMessage('assistant', botReply);
+            chatHistory.push({"role": "assistant", "content": botReply});
+            
+            // Re-enable input
+            chatInput.disabled = false;
+            sendBtn.disabled = false;
+            chatInput.focus();
+        })
+        .catch(err => {
+            console.error(err);
+            const temp = messagesBox.querySelector('.typing-msg');
+            if (temp) temp.remove();
+            appendMessage('assistant', "Network connection error. Check if your Groq API key is valid in the system settings.");
+            chatInput.disabled = false;
+            sendBtn.disabled = false;
+        });
+    }
+
+    // Bind click and Enter keys
+    sendBtn.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    });
+});
+</script>
+{% endblock %}

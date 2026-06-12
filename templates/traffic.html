@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+
+{% block title %}Traffic Monitoring - AI Smart City Dashboard{% endblock %}
+{% block page_heading %}Traffic Monitoring Module{% endblock %}
+{% block page_subheading %}Monitor vehicle densities, speed logs, and get AI-powered congestion management plans{% endblock %}
+
+{% block content %}
+<!-- Section: AI Traffic Recommendation Console -->
+<div class="glass-panel" style="margin-bottom: 2.5rem;">
+    <div class="panel-header">
+        <h2><i class="fa-solid fa-brain"></i> AI Traffic Optimizer Assistant</h2>
+        <button id="btn-run-ai-traffic" class="btn btn-primary btn-sm">
+            <i class="fa-solid fa-circle-play"></i> Run Traffic Analysis
+        </button>
+    </div>
+    
+    <div id="traffic-ai-box" class="ai-card" style="display: none;">
+        <div class="ai-card-header">
+            <i class="fa-solid fa-robot"></i>
+            <h3>Groq Llama 3.1 Optimizer Output</h3>
+        </div>
+        <div class="ai-recommendation-content">
+            <div style="margin-bottom: 0.75rem;">
+                <strong>City Congestion Risk Status:</strong> 
+                <span id="ai-risk-badge" class="badge">PENDING</span>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <strong>Identified Bottleneck Zones:</strong>
+                <p id="ai-issues-text" style="margin-top: 0.25rem; font-style: italic; color: var(--secondary-gray);"></p>
+            </div>
+            <div>
+                <strong>Recommended Mitigation Measures:</strong>
+                <ul id="ai-recommendations-list"></ul>
+            </div>
+        </div>
+    </div>
+    <div id="ai-loading" style="display: none; text-align: center; padding: 1rem;">
+        <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary);"></i>
+        <p style="margin-top: 0.5rem; color: var(--text-muted);">Groq API running smart traffic simulation...</p>
+    </div>
+</div>
+
+<!-- Section: Traffic Data Ledger Table -->
+<div class="glass-panel">
+    <div class="panel-header">
+        <h2><i class="fa-solid fa-road"></i> Traffic Incidents Log</h2>
+        {% if current_user and current_user.role in ['admin', 'officer'] %}
+            <button class="btn btn-primary btn-sm" onclick="openModal('addTrafficModal')">
+                <i class="fa-solid fa-plus"></i> Add Traffic Log
+            </button>
+        {% endif %}
+    </div>
+
+    <div class="table-wrapper">
+        <table class="smart-table">
+            <thead>
+                <tr>
+                    <th>Location Station</th>
+                    <th>Vehicle Volume</th>
+                    <th>Average Speed</th>
+                    <th>Congestion Status</th>
+                    <th>Observed At</th>
+                    {% if current_user and current_user.role in ['admin', 'officer'] %}
+                        <th>Operations</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% if traffic_records %}
+                    {% for r in traffic_records %}
+                        <tr>
+                            <td><strong>{{ r.location }}</strong></td>
+                            <td>{{ r.vehicle_count }} vehicles/hr</td>
+                            <td>{{ r.avg_speed }} km/h</td>
+                            <td>
+                                <span class="badge {{ r.congestion_level.lower() }}">
+                                    <i class="fa-solid fa-circle" style="font-size: 0.55rem; margin-right: 0.25rem;"></i>
+                                    {{ r.congestion_level }}
+                                </span>
+                            </td>
+                            <td>{{ r.timestamp[:16].replace('T', ' ') }}</td>
+                            {% if current_user and current_user.role in ['admin', 'officer'] %}
+                                <td>
+                                    <button class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.5rem;" onclick="openUpdateTrafficModal('{{ r.id }}', '{{ r.location }}', '{{ r.vehicle_count }}', '{{ r.avg_speed }}', '{{ r.congestion_level }}')">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </button>
+                                    <form action="{{ url_for('traffic.delete_traffic', record_id=r.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Remove this traffic entry?');">
+                                        <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.25rem 0.5rem;">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No traffic records available. Click Add Traffic Log to start.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ==========================================
+     MODALS FOR TRAFFIC CRUD
+     ========================================== -->
+{% if current_user and current_user.role in ['admin', 'officer'] %}
+<!-- Modal: Add Traffic Log -->
+<div id="addTrafficModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h3 style="margin-bottom: 1.5rem;"><i class="fa-solid fa-plus-circle"></i> Log Traffic Event</h3>
+        
+        <form action="{{ url_for('traffic.add_traffic') }}" method="POST">
+            <div class="form-group">
+                <label for="location">Intersection Location</label>
+                <select id="location" name="location" class="form-control" required>
+                    <option value="Downtown Broadway & 5th Ave">Downtown Broadway & 5th Ave</option>
+                    <option value="Uptown Expressway Exit 4">Uptown Expressway Exit 4</option>
+                    <option value="Westside Ring Road Sector 2">Westside Ring Road Sector 2</option>
+                    <option value="East Bridge Link">East Bridge Link</option>
+                    <option value="Financial District Central Sub">Financial District Central Sub</option>
+                    <option value="Industrial Park Flyover">Industrial Park Flyover</option>
+                    <option value="North Suburbs Access Rd">North Suburbs Access Rd</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="vehicle_count">Vehicle Count (per hour)</label>
+                <input type="number" id="vehicle_count" name="vehicle_count" class="form-control" min="0" placeholder="120" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="avg_speed">Average Speed (km/h)</label>
+                <input type="number" id="avg_speed" name="avg_speed" class="form-control" min="1" max="150" step="0.1" placeholder="45.5" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="congestion_level">Assessed Congestion Level</label>
+                <select id="congestion_level" name="congestion_level" class="form-control" required>
+                    <option value="Low">Low (Free Flow)</option>
+                    <option value="Medium">Medium (Moderate Congestion)</option>
+                    <option value="High">High (Heavily Bottlenecked)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="timestamp">Timestamp (Optional, leave blank for current time)</label>
+                <input type="datetime-local" id="timestamp" name="timestamp" class="form-control">
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                <i class="fa-solid fa-floppy-disk"></i> Save Entry
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Update Traffic Log -->
+<div id="updateTrafficModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h3 style="margin-bottom: 1.5rem;"><i class="fa-solid fa-pen-to-square"></i> Modify Traffic Log</h3>
+        
+        <form action="" method="POST">
+            <div class="form-group">
+                <label for="edit_location">Intersection Location</label>
+                <input type="text" id="edit_location" name="location" class="form-control" readonly>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit_vehicle_count">Vehicle Count (per hour)</label>
+                <input type="number" id="edit_vehicle_count" name="vehicle_count" class="form-control" min="0" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit_avg_speed">Average Speed (km/h)</label>
+                <input type="number" id="edit_avg_speed" name="avg_speed" class="form-control" min="1" max="150" step="0.1" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit_congestion_level">Congestion Level</label>
+                <select id="edit_congestion_level" name="congestion_level" class="form-control" required>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                <i class="fa-solid fa-floppy-disk"></i> Update Entry
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const aiBtn = document.getElementById('btn-run-ai-traffic');
+    const aiBox = document.getElementById('traffic-ai-box');
+    const loading = document.getElementById('ai-loading');
+    
+    if (aiBtn) {
+        aiBtn.addEventListener('click', () => {
+            aiBox.style.display = 'none';
+            loading.style.display = 'block';
+            
+            fetch('/traffic/ai-analysis', {
+                method: 'POST'
+            })
+            .then(res => res.json())
+            .then(data => {
+                loading.style.display = 'none';
+                
+                // Update Risk Level Badge
+                const riskBadge = document.getElementById('ai-risk-badge');
+                riskBadge.textContent = data.risk_level;
+                riskBadge.className = `badge ${data.risk_level.toLowerCase()}`;
+                
+                // Update Issues description
+                document.getElementById('ai-issues-text').textContent = data.issues;
+                
+                // Update recommendations list
+                const list = document.getElementById('ai-recommendations-list');
+                list.innerHTML = '';
+                
+                // Parse recommendations if text contains bullets, or if it is already a list
+                let items = [];
+                if (Array.isArray(data.recommendations)) {
+                    items = data.recommendations;
+                } else {
+                    // split by bullets or newlines if it returned a single string
+                    items = data.recommendations.split(/\n|•|-|\d+\./).map(x => x.strip ? x.strip() : x.trim()).filter(x => x.length > 0);
+                }
+                
+                // Fallback to text directly if split failed
+                if (items.length === 0 && data.recommendations) {
+                    items = [data.recommendations];
+                }
+                
+                items.forEach(rec => {
+                    const li = document.createElement('li');
+                    li.textContent = rec;
+                    list.appendChild(li);
+                });
+                
+                // Reveal AI suggestions panel
+                aiBox.style.display = 'block';
+            })
+            .catch(err => {
+                console.error(err);
+                loading.style.display = 'none';
+                alert('Connection to Groq Llama 3.1 failed. Please check your credentials in the environment.');
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

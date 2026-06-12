@@ -1,0 +1,367 @@
+{% extends 'base.html' %}
+
+{% block title %}Pollution Analytics - AI Smart City Dashboard{% endblock %}
+{% block page_heading %}Pollution Analytics Module{% endblock %}
+{% block page_subheading %}Track atmospheric particulate volumes, CO2 scores, noise decibels, and request mitigation advice{% endblock %}
+
+{% block content %}
+<!-- KPI summary row -->
+<div class="grid-kpis" style="margin-bottom: 2rem;">
+    <div class="kpi-card" style="border-bottom-color: var(--success);">
+        <div class="kpi-details">
+            <h3>Average PM2.5</h3>
+            {% set avg_pm25 = sum(float(x.get('pm25', 0)) for x in pollution_records) / pollution_records|length if pollution_records else 0 %}
+            <div class="value">{{ avg_pm25|round(1) }} <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">ug/m³</span></div>
+        </div>
+        <div class="kpi-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+            <i class="fa-solid fa-wind"></i>
+        </div>
+    </div>
+    
+    <div class="kpi-card" style="border-bottom-color: var(--primary);">
+        <div class="kpi-details">
+            <h3>Mean CO2 Volume</h3>
+            {% set avg_co2 = sum(float(x.get('co2', 0)) for x in pollution_records) / pollution_records|length if pollution_records else 0 %}
+            <div class="value">{{ avg_co2|round(1) }} <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">ppm</span></div>
+        </div>
+        <div class="kpi-icon" style="background: rgba(37, 99, 235, 0.1); color: var(--primary);">
+            <i class="fa-solid fa-leaf"></i>
+        </div>
+    </div>
+    
+    <div class="kpi-card" style="border-bottom-color: var(--warning);">
+        <div class="kpi-details">
+            <h3>Noise Level Decibels</h3>
+            {% set avg_noise = sum(float(x.get('noise_level', 0)) for x in pollution_records) / pollution_records|length if pollution_records else 0 %}
+            <div class="value">{{ avg_noise|round(1) }} <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">dB</span></div>
+        </div>
+        <div class="kpi-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--warning);">
+            <i class="fa-solid fa-volume-high"></i>
+        </div>
+    </div>
+</div>
+
+<!-- AI Recommendation console -->
+<div class="glass-panel" style="margin-bottom: 2.5rem;">
+    <div class="panel-header">
+        <h2><i class="fa-solid fa-brain"></i> AI Environmental Health Advisor</h2>
+        <button id="btn-run-ai-pollution" class="btn btn-primary btn-sm">
+            <i class="fa-solid fa-circle-play"></i> Run Environmental Audit
+        </button>
+    </div>
+    
+    <div id="pollution-ai-box" class="ai-card" style="display: none;">
+        <div class="ai-card-header">
+            <i class="fa-solid fa-robot"></i>
+            <h3>Groq Llama 3.1 Mitigation Advice</h3>
+        </div>
+        <div class="ai-recommendation-content">
+            <div style="margin-bottom: 0.75rem;">
+                <strong>Eco Risk Factor:</strong> 
+                <span id="ai-risk-badge" class="badge">PENDING</span>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <strong>Primary Pollutants & Locations:</strong>
+                <p id="ai-issues-text" style="margin-top: 0.25rem; font-style: italic; color: var(--secondary-gray);"></p>
+            </div>
+            <div>
+                <strong>Air Quality Improvement Strategies:</strong>
+                <ul id="ai-recommendations-list"></ul>
+            </div>
+        </div>
+    </div>
+    <div id="ai-loading" style="display: none; text-align: center; padding: 1rem;">
+        <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary);"></i>
+        <p style="margin-top: 0.5rem; color: var(--text-muted);">Groq API running particulate dispersion forecast...</p>
+    </div>
+</div>
+
+<!-- Leaflet Heatmap Canvas -->
+<div class="glass-panel" style="margin-bottom: 2.5rem;">
+    <div class="panel-header">
+        <h2><i class="fa-solid fa-fire-flame-simple"></i> Air Pollution Intensity Heatmap</h2>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Translucent sectors reflecting comparative PM2.5 concentrations</span>
+    </div>
+    <div id="pollution-heatmap" style="height: 380px; border-radius: 12px; border: 1px solid var(--border-glass);"></div>
+</div>
+
+<!-- Pollution Data logs table -->
+<div class="glass-panel">
+    <div class="panel-header">
+        <h2><i class="fa-solid fa-chart-simple"></i> Atmospheric Monitoring Log Ledger</h2>
+        {% if current_user and current_user.role in ['admin', 'officer'] %}
+            <button class="btn btn-primary btn-sm" onclick="openModal('addPollutionModal')">
+                <i class="fa-solid fa-plus"></i> Add Air Metrics Log
+            </button>
+        {% endif %}
+    </div>
+
+    <div class="table-wrapper">
+        <table class="smart-table">
+            <thead>
+                <tr>
+                    <th>Monitoring Station</th>
+                    <th>AQI Score</th>
+                    <th>PM2.5 (ug/m³)</th>
+                    <th>PM10 (ug/m³)</th>
+                    <th>CO2 (ppm)</th>
+                    <th>Noise (dB)</th>
+                    <th>Logged At</th>
+                    {% if current_user and current_user.role in ['admin', 'officer'] %}
+                        <th>Operations</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% if pollution_records %}
+                    {% for r in pollution_records %}
+                        <tr>
+                            <td><strong>{{ r.location }}</strong></td>
+                            <td>
+                                <span class="badge {% if r.aqi <= 50 %}low{% elif r.aqi <= 100 %}medium{% else %}high{% endif %}">
+                                    {{ r.aqi }}
+                                </span>
+                            </td>
+                            <td>{{ r.pm25 }}</td>
+                            <td>{{ r.pm10 }}</td>
+                            <td>{{ r.co2 }} ppm</td>
+                            <td>{{ r.noise_level }} dB</td>
+                            <td>{{ r.timestamp[:16].replace('T', ' ') }}</td>
+                            {% if current_user and current_user.role in ['admin', 'officer'] %}
+                                <td>
+                                    <button class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.5rem;" onclick="openUpdatePollutionModal('{{ r.id }}', '{{ r.location }}', '{{ r.aqi }}', '{{ r.pm25 }}', '{{ r.pm10 }}', '{{ r.co2 }}', '{{ r.noise_level }}')">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </button>
+                                    <form action="{{ url_for('pollution.delete_pollution', record_id=r.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this environmental metric?');">
+                                        <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.25rem 0.5rem;">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">No environmental data points logged yet.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ==========================================
+     MODALS FOR POLLUTION CRUD
+     ========================================== -->
+{% if current_user and current_user.role in ['admin', 'officer'] %}
+<!-- Modal: Add Pollution Log -->
+<div id="addPollutionModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h3 style="margin-bottom: 1.5rem;"><i class="fa-solid fa-plus-circle"></i> Log Station Air Metrics</h3>
+        
+        <form action="{{ url_for('pollution.add_pollution') }}" method="POST">
+            <div class="form-group">
+                <label for="location">Station Location</label>
+                <select id="location" name="location" class="form-control" required>
+                    <option value="Industrial Park Sector A">Industrial Park Sector A</option>
+                    <option value="Downtown Broadway & 5th Ave">Downtown Broadway & 5th Ave</option>
+                    <option value="Westside Ring Road Sector 2">Westside Ring Road Sector 2</option>
+                    <option value="Financial District Central Sub">Financial District Central Sub</option>
+                    <option value="Uptown Residential Area">Uptown Residential Area</option>
+                    <option value="North Suburbs Parkside">North Suburbs Parkside</option>
+                    <option value="Waterfront Marina Blvd">Waterfront Marina Blvd</option>
+                    <option value="City Center Square">City Center Square</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="aqi">Air Quality Index (AQI)</label>
+                <input type="number" id="aqi" name="aqi" class="form-control" min="0" max="500" placeholder="110" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="pm25">PM2.5 Level (µg/m³)</label>
+                <input type="number" id="pm25" name="pm25" class="form-control" min="0" max="500" step="0.1" placeholder="38.5" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="pm10">PM10 Level (µg/m³)</label>
+                <input type="number" id="pm10" name="pm10" class="form-control" min="0" max="500" step="0.1" placeholder="52.2" required>
+            </div>
+
+            <div class="form-group">
+                <label for="co2">Carbon Dioxide (CO2 in ppm)</label>
+                <input type="number" id="co2" name="co2" class="form-control" min="200" max="2000" step="0.1" placeholder="450" required>
+            </div>
+
+            <div class="form-group">
+                <label for="noise_level">Noise decibels (dB)</label>
+                <input type="number" id="noise_level" name="noise_level" class="form-control" min="20" max="150" step="0.1" placeholder="70" required>
+            </div>
+
+            <div class="form-group">
+                <label for="timestamp">Timestamp (Optional)</label>
+                <input type="datetime-local" id="timestamp" name="timestamp" class="form-control">
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                <i class="fa-solid fa-floppy-disk"></i> Save Entry
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Update Pollution Log -->
+<div id="updatePollutionModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h3 style="margin-bottom: 1.5rem;"><i class="fa-solid fa-pen-to-square"></i> Modify Environmental Metrics</h3>
+        
+        <form action="" method="POST">
+            <div class="form-group">
+                <label for="edit_location">Station Location</label>
+                <input type="text" id="edit_location" name="location" class="form-control" readonly>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit_aqi">AQI</label>
+                <input type="number" id="edit_aqi" name="aqi" class="form-control" min="0" max="500" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit_pm25">PM2.5</label>
+                <input type="number" id="edit_pm25" name="pm25" class="form-control" min="0" max="500" step="0.1" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit_pm10">PM10</label>
+                <input type="number" id="edit_pm10" name="pm10" class="form-control" min="0" max="500" step="0.1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="edit_co2">CO2 (ppm)</label>
+                <input type="number" id="edit_co2" name="co2" class="form-control" min="200" max="2000" step="0.1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="edit_noise_level">Noise Level (dB)</label>
+                <input type="number" id="edit_noise_level" name="noise_level" class="form-control" min="20" max="150" step="0.1" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                <i class="fa-solid fa-floppy-disk"></i> Update Entry
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Initialize Leaflet Heatmap Canvas
+    const pollutionMap = L.map('pollution-heatmap').setView([40.7128, -74.0060], 13);
+    
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(pollutionMap);
+    
+    // Station coordinates
+    const locationCoords = {
+        "Industrial Park Sector A": [40.7450, -74.0500],
+        "Downtown Broadway & 5th Ave": [40.7128, -74.0060],
+        "Westside Ring Road Sector 2": [40.7250, -74.0100],
+        "Financial District Central Sub": [40.7060, -74.0150],
+        "Uptown Residential Area": [40.7500, -74.0000],
+        "North Suburbs Parkside": [40.7750, -73.9850],
+        "Waterfront Marina Blvd": [40.7020, -74.0180],
+        "City Center Square": [40.7180, -73.9980]
+    };
+    
+    // Plot dynamic pollution heat sectors (translucent circles)
+    {% for r in pollution_records %}
+        var loc = "{{ r.location }}";
+        if (locationCoords[loc]) {
+            var coords = locationCoords[loc];
+            var pm25 = {{ r.pm25 }};
+            var aqi = {{ r.aqi }};
+            
+            // Map AQI to colors (Good = green, Moderate = yellow, Unhealthy = red/purple)
+            var heatColor = '#10b981'; // Green
+            if (aqi > 150) heatColor = '#9333ea'; // Purple (Extreme)
+            else if (aqi > 100) heatColor = '#ef4444'; // Red
+            else if (aqi > 50) heatColor = '#f59e0b'; // Amber
+            
+            // Draw translucent circle to represent heat spot
+            L.circle(coords, {
+                color: heatColor,
+                fillColor: heatColor,
+                fillOpacity: 0.25,
+                radius: 400 + (pm25 * 5) // Circle size proportional to pm25 density
+            })
+            .addTo(pollutionMap)
+            .bindPopup(`<strong>Monitoring Station: ${loc}</strong><br>AQI Score: <strong>${aqi}</strong><br>PM2.5: ${pm25} µg/m³<br>CO2: {{ r.co2 }} ppm`);
+        }
+    {% endfor %}
+
+    // 2. AI Recommendation fetcher script
+    const aiBtn = document.getElementById('btn-run-ai-pollution');
+    const aiBox = document.getElementById('pollution-ai-box');
+    const loading = document.getElementById('ai-loading');
+    
+    if (aiBtn) {
+        aiBtn.addEventListener('click', () => {
+            aiBox.style.display = 'none';
+            loading.style.display = 'block';
+            
+            fetch('/pollution/ai-analysis', {
+                method: 'POST'
+            })
+            .then(res => res.json())
+            .then(data => {
+                loading.style.display = 'none';
+                
+                // Update Badge
+                const badge = document.getElementById('ai-risk-badge');
+                badge.textContent = data.risk_level;
+                badge.className = `badge ${data.risk_level.toLowerCase()}`;
+                
+                // Update Issues
+                document.getElementById('ai-issues-text').textContent = data.issues;
+                
+                // Update Recommendations
+                const list = document.getElementById('ai-recommendations-list');
+                list.innerHTML = '';
+                
+                let items = [];
+                if (Array.isArray(data.recommendations)) {
+                    items = data.recommendations;
+                } else {
+                    items = data.recommendations.split(/\n|•|-|\d+\./).map(x => x.trim()).filter(x => x.length > 0);
+                }
+                
+                if (items.length === 0 && data.recommendations) {
+                    items = [data.recommendations];
+                }
+                
+                items.forEach(rec => {
+                    const li = document.createElement('li');
+                    li.textContent = rec;
+                    list.appendChild(li);
+                });
+                
+                aiBox.style.display = 'block';
+            })
+            .catch(err => {
+                console.error(err);
+                loading.style.display = 'none';
+                alert('Connection to Groq Llama 3.1 failed. Please verify credentials.');
+            });
+        });
+    }
+});
+</script>
+{% endblock %}
